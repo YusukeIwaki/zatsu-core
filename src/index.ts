@@ -1,2 +1,1 @@
-export * as http from './http'
-export * as cli from './cli'
+export { executeHTTPRequest } from './cli'
