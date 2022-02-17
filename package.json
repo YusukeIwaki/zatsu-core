@@ -1,6 +1,6 @@
 {
   "name": "@zatsu/core",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "Common interfaces definitions used for @zatsu packages",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
