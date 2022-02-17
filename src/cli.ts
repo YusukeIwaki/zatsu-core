@@ -1,4 +1,4 @@
-import fs from 'fs/promises'
+import fs from 'fs'
 import path from 'path'
 import { RequestContext, executeRequest } from './http'
 
@@ -146,7 +146,7 @@ function parseCLIArgs(args: Array<string>): CLIArgsParseResult {
         if (!process.stdin.isTTY) { // pipe input
             throw new Error('@body cannot be specified when Pipe input is present')
         }
-        body = fs.readFile(resolveHomePath(cliArg.magicParameters.body))
+        body = fs.promises.readFile(resolveHomePath(cliArg.magicParameters.body))
     } else if (!process.stdin.isTTY) { // pipe input
         body = readStdinAsBuffer()
     }
