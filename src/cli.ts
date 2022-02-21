@@ -173,6 +173,14 @@ function writeBufferToStdout(buffer: Buffer | string): Promise<null> {
     })
 }
 
+/**
+ * Perform HTTP request using input command line args.
+ * baseURL and interceptors can be specified as context.
+ * Interceptor enables us to add extra HTTP Headers (such as UserAgent, Authorization), logging, and so on.
+ *
+ * @param args Typically `process.argv.slice(2)`
+ * @param context
+ */
 export async function executeHTTPRequest(args: Array<string>, context: RequestContext) {
     const parsedArgs = parseCLIArgs(args)
     const response = await executeRequest({
