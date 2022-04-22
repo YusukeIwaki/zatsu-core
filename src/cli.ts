@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import { RequestContext, executeRequest } from './http'
+import { executeRequest as _executeRequest, Request, RequestContext, Response, PerformRequest } from './http'
+import { updateKeyValue } from './util'
 
 const supportedMethods = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'] as const
 type Method = typeof supportedMethods[number]
@@ -11,14 +12,6 @@ type ParseResult = {
     queryParameters: URLSearchParams
     headers: Array<[string, string]>
     magicParameters: { body?: string }
-}
-
-type CLIArgsParseResult = {
-    method: Method
-    path: string
-    queryParameters: URLSearchParams
-    headers: Array<[string, string]>
-    body: Promise<Buffer> | undefined
 }
 
 function validatedMethodFor(arg0: string | undefined): Method {
@@ -98,7 +91,7 @@ function parseParamsAndHeaders(restArgs: Array<string>): ParamsAndHeaders {
 }
 
 // @visibleForTesting
-export function parseArguments(args: Array<string>): ParseResult {
+export function _parseArguments(args: Array<string>): ParseResult {
     const method = validatedMethodFor(args[0])
     const pathWithQuery = validatedPathFor(args[1])
     const { queryParams, magicParams, headers } = parseParamsAndHeaders(args.slice(2))
@@ -139,16 +132,16 @@ async function readStdinAsBuffer(): Promise<Buffer> {
     return Buffer.concat(data);
 }
 
-function parseCLIArgs(args: Array<string>): CLIArgsParseResult {
-    const cliArg = parseArguments(args)
-    let body: Promise<Buffer> | undefined
+export async function buildRequestFromArgs(args: Array<string>): Promise<Request> {
+    const cliArg = _parseArguments(args)
+    let body: Buffer | undefined
     if (cliArg.magicParameters.body) {
         if (!process.stdin.isTTY) { // pipe input
             throw new Error('@body cannot be specified when Pipe input is present')
         }
-        body = fs.promises.readFile(resolveHomePath(cliArg.magicParameters.body))
+        body = await fs.promises.readFile(resolveHomePath(cliArg.magicParameters.body))
     } else if (!process.stdin.isTTY) { // pipe input
-        body = readStdinAsBuffer()
+        body = await readStdinAsBuffer()
     }
 
     return {
@@ -174,6 +167,18 @@ function writeBufferToStdout(buffer: Buffer | string): Promise<null> {
 }
 
 /**
+ * An interceptor for JSON request. It just adds Accept: application/json, and Content-Type: application/json
+ */
+export function injectHeadersForJsonRequest(performRequest: PerformRequest, request: Request): Promise<Response> {
+    updateKeyValue(request.headers, 'Accept', 'application/json')
+    updateKeyValue(request.headers, 'Content-Type', 'application/json')
+    return performRequest(request)
+}
+
+export const executeRequest = _executeRequest
+
+export const printResponseBody = writeBufferToStdout
+/**
  * Perform HTTP request using input command line args.
  * baseURL and interceptors can be specified as context.
  * Interceptor enables us to add extra HTTP Headers (such as UserAgent, Authorization), logging, and so on.
@@ -181,15 +186,9 @@ function writeBufferToStdout(buffer: Buffer | string): Promise<null> {
  * @param args Typically `process.argv.slice(2)`
  * @param context
  */
-export async function executeHTTPRequest(args: Array<string>, context: RequestContext) {
-    const parsedArgs = parseCLIArgs(args)
-    const response = await executeRequest({
-        method: parsedArgs.method,
-        path: parsedArgs.path,
-        headers: parsedArgs.headers,
-        queryParameters: parsedArgs.queryParameters,
-        body: await parsedArgs.body,
-    }, context)
+export async function createJSONClient(args: Array<string>, context: RequestContext) {
+    const request = await buildRequestFromArgs(args)
+    const response = await _executeRequest(request, context)
 
     if (!!response.body) {
         await writeBufferToStdout(response.body)
